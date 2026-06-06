@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Sparkles, ChevronRight, Package, ShieldCheck, Zap } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Sparkles, ChevronRight, Package, ShieldCheck, Zap, Anchor, ArrowUp, List, FileText, Inbox } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
-import { recommendEquipment } from '@/services/recommendService';
-import type { SkillLevel, EquipmentType, RecommendResult } from '@/types';
+import { recommendEquipment, validateStock } from '@/services/recommendService';
+import { useScrollAnchor, ANCHOR_IDS } from '@/hooks/useScrollAnchor';
+import type { SkillLevel, EquipmentType, RecommendResult, EquipmentSize } from '@/types';
 
 const skillLevels: { value: SkillLevel; label: string; description: string }[] = [
   { value: 'beginner', label: '初学者', description: '第一次滑雪或经验较少' },
@@ -19,7 +20,8 @@ const equipmentOptions: { value: EquipmentType; label: string; icon: typeof Pack
 ];
 
 export default function TouristPage() {
-  const { equipments, recommendResults, setRecommendResults, addToast } = useAppStore();
+  const { equipments, recommendResults, setRecommendResults, addToast, addEquipmentList, updateStock } = useAppStore();
+  const { scrollToAnchor, scrollToTop } = useScrollAnchor();
   
   const [skillLevel, setSkillLevel] = useState<SkillLevel>('beginner');
   const [height, setHeight] = useState<number>(170);
@@ -27,6 +29,9 @@ export default function TouristPage() {
   const [footSize, setFootSize] = useState<number>(42);
   const [selectedTypes, setSelectedTypes] = useState<EquipmentType[]>(['snowboard', 'boots', 'helmet']);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [showNav, setShowNav] = useState(false);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   const toggleEquipmentType = (type: EquipmentType) => {
     setSelectedTypes((prev) =>
@@ -57,6 +62,58 @@ export default function TouristPage() {
     }, 800);
   };
 
+  const handleAddToList = (result: RecommendResult) => {
+    const validation = validateStock(result.equipment, result.recommendedSize.id);
+    
+    if (!validation.success) {
+      addToast('error', validation.message);
+      return;
+    }
+
+    const itemKey = `${result.equipment.id}-${result.recommendedSize.id}`;
+    if (selectedItems.has(itemKey)) {
+      addToast('info', '该装备已在清单中');
+      return;
+    }
+
+    setSelectedItems((prev) => new Set(prev).add(itemKey));
+    updateStock(result.equipment.id, result.recommendedSize.id, -1);
+    addToast('success', `已将 ${result.equipment.name} ${result.recommendedSize.sizeLabel} 加入清单`);
+  };
+
+  const handleBatchAdd = () => {
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const result of recommendResults) {
+      const itemKey = `${result.equipment.id}-${result.recommendedSize.id}`;
+      if (selectedItems.has(itemKey)) continue;
+
+      const validation = validateStock(result.equipment, result.recommendedSize.id);
+      if (validation.success) {
+        setSelectedItems((prev) => new Set(prev).add(itemKey));
+        updateStock(result.equipment.id, result.recommendedSize.id, -1);
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      addToast('success', `成功加入 ${successCount} 件装备${failCount > 0 ? `，${failCount} 件库存不足` : ''}`);
+    } else if (failCount > 0) {
+      addToast('error', `${failCount} 件装备库存不足，无法加入`);
+    }
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowNav(window.scrollY > 300);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const getBoardTypeLabel = (type?: string) => {
     const labels: Record<string, string> = {
       stable: '稳定型',
@@ -68,7 +125,44 @@ export default function TouristPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8 relative">
+      {showNav && (
+        <div className="fixed right-6 top-1/2 -translate-y-1/2 z-50 bg-white rounded-xl shadow-lg border border-gray-200 p-2 flex flex-col gap-1">
+          <button
+            onClick={() => scrollToAnchor(ANCHOR_IDS.RECOMMEND_LIST)}
+            className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
+            title="跳转到推荐列表"
+          >
+            <List className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
+          </button>
+          {recommendResults.length > 0 && (
+            <button
+              onClick={() => scrollToAnchor(`${ANCHOR_IDS.RECOMMEND_DETAIL}-0` as any)}
+              className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
+              title="跳转到第一条详情"
+            >
+              <FileText className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
+            </button>
+          )}
+          {recommendResults.length === 0 && (
+            <button
+              onClick={() => scrollToAnchor(ANCHOR_IDS.EMPTY_STATE)}
+              className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
+              title="跳转到空态"
+            >
+              <Inbox className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
+            </button>
+          )}
+          <div className="w-full h-px bg-gray-200 my-1" />
+          <button
+            onClick={scrollToTop}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors group"
+            title="回到顶部"
+          >
+            <ArrowUp className="w-5 h-5 text-gray-600 group-hover:text-gray-900" />
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-6">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
@@ -186,23 +280,52 @@ export default function TouristPage() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <Package className="w-5 h-5 text-blue-500" />
-              推荐结果
-            </h2>
+        <div className="space-y-6" ref={resultsRef}>
+          <div 
+            id={ANCHOR_IDS.RECOMMEND_LIST}
+            className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Package className="w-5 h-5 text-blue-500" />
+                推荐结果
+                {recommendResults.length > 0 && (
+                  <span className="text-sm font-normal text-gray-500">
+                    ({recommendResults.length} 件)
+                  </span>
+                )}
+              </h2>
+              {recommendResults.length > 0 && (
+                <button
+                  onClick={handleBatchAdd}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <Package className="w-4 h-4" />
+                  全部加入清单
+                </button>
+              )}
+            </div>
 
             {recommendResults.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+              <div 
+                id={ANCHOR_IDS.EMPTY_STATE}
+                className="text-center py-12 text-gray-500"
+              >
+                <Inbox className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                 <p>填写信息后点击「智能推荐」</p>
                 <p className="text-sm mt-1">系统将为您匹配最合适的装备</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {recommendResults.map((result, index) => (
-                  <ResultCard key={index} result={result} getBoardTypeLabel={getBoardTypeLabel} />
+                  <ResultCard 
+                    key={index} 
+                    result={result} 
+                    getBoardTypeLabel={getBoardTypeLabel}
+                    onAddToList={handleAddToList}
+                    isSelected={selectedItems.has(`${result.equipment.id}-${result.recommendedSize.id}`)}
+                    index={index}
+                  />
                 ))}
               </div>
             )}
@@ -216,12 +339,28 @@ export default function TouristPage() {
 function ResultCard({
   result,
   getBoardTypeLabel,
+  onAddToList,
+  isSelected,
+  index,
 }: {
   result: RecommendResult;
   getBoardTypeLabel: (type?: string) => string;
+  onAddToList: (result: RecommendResult) => void;
+  isSelected: boolean;
+  index: number;
 }) {
+  const detailAnchorId = `${ANCHOR_IDS.RECOMMEND_DETAIL}-${index}`;
+  const isOutOfStock = result.recommendedSize.stock <= 0;
+
   return (
-    <div className="flex gap-4 p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all">
+    <div 
+      id={detailAnchorId}
+      className={`flex gap-4 p-4 rounded-xl border transition-all scroll-mt-24 ${
+        isSelected 
+          ? 'border-green-400 bg-green-50' 
+          : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+      }`}
+    >
       <img
         src={result.equipment.imageUrl}
         alt={result.equipment.name}
@@ -234,10 +373,26 @@ function ResultCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h3 className="font-semibold text-gray-900">{result.equipment.name}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900">{result.equipment.name}</h3>
+              <a 
+                href={`#${detailAnchorId}`}
+                className="text-gray-400 hover:text-blue-500 transition-colors"
+                onClick={(e) => {
+                  e.preventDefault();
+                  history.replaceState(null, '', `#${detailAnchorId}`);
+                }}
+              >
+                <Anchor className="w-4 h-4" />
+              </a>
+            </div>
             <p className="text-sm text-gray-500">{result.equipment.brand}</p>
           </div>
-          <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full flex-shrink-0">
+          <span className={`px-2 py-1 text-xs font-medium rounded-full flex-shrink-0 ${
+            isOutOfStock 
+              ? 'bg-red-100 text-red-700' 
+              : 'bg-green-100 text-green-700'
+          }`}>
             {result.recommendedSize.sizeLabel}
           </span>
         </div>
@@ -250,15 +405,46 @@ function ResultCard({
         
         <p className="text-sm text-gray-600 mt-2">{result.reason}</p>
         
-        <div className="flex items-center gap-4 mt-3">
-          <div className="text-xs text-gray-500">
-            库存: <span className={result.recommendedSize.stock > 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-              {result.recommendedSize.stock}件
-            </span>
+        <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center gap-4">
+            <div className="text-xs text-gray-500">
+              库存: <span className={isOutOfStock ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
+                {result.recommendedSize.stock}件
+              </span>
+            </div>
+            <div className="text-xs text-gray-500">
+              匹配度: <span className="text-blue-600 font-medium">{result.matchScore}%</span>
+            </div>
           </div>
-          <div className="text-xs text-gray-500">
-            匹配度: <span className="text-blue-600 font-medium">{result.matchScore}%</span>
-          </div>
+          
+          <button
+            onClick={() => onAddToList(result)}
+            disabled={isOutOfStock || isSelected}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all flex items-center gap-1.5 ${
+              isSelected
+                ? 'bg-green-100 text-green-700 cursor-default'
+                : isOutOfStock
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            {isSelected ? (
+              <>
+                <ShieldCheck className="w-4 h-4" />
+                已加入
+              </>
+            ) : isOutOfStock ? (
+              <>
+                <Package className="w-4 h-4" />
+                库存不足
+              </>
+            ) : (
+              <>
+                <Package className="w-4 h-4" />
+                加入清单
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

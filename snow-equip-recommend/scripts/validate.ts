@@ -1,10 +1,19 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { initialEquipments } from '../src/data/initialData';
 import { recommendEquipment, validateStock } from '../src/services/recommendService';
+import { ANCHOR_IDS } from '../src/hooks/useScrollAnchor';
 import type { RecommendRequest, Equipment } from '../src/types';
+
+const seedPath = join(process.cwd(), 'seed-742.json');
+const seedData = JSON.parse(readFileSync(seedPath, 'utf-8'));
 
 console.log('========================================');
 console.log('  雪场装备尺码推荐系统 - 验证脚本');
-console.log('========================================\n');
+console.log('========================================');
+console.log(`📋 业务编号: ${seedData.businessNumber}`);
+console.log(`📅 生成时间: ${seedData.generatedAt}`);
+console.log(`📝 描述: ${seedData.description}\n`);
 
 let passed = 0;
 let failed = 0;
@@ -273,9 +282,59 @@ test('高级玩家优先推荐非稳定板型', () => {
   }
 });
 
+console.log('\n🔗 5. 定位跳转锚点验证\n');
+
+test('推荐列表锚点已定义', () => {
+  assertTrue(ANCHOR_IDS.RECOMMEND_LIST === 'recommend-list', '推荐列表锚点ID应为 recommend-list');
+});
+
+test('推荐详情锚点已定义', () => {
+  assertTrue(ANCHOR_IDS.RECOMMEND_DETAIL === 'recommend-detail', '推荐详情锚点ID应为 recommend-detail');
+});
+
+test('空态锚点已定义', () => {
+  assertTrue(ANCHOR_IDS.EMPTY_STATE === 'empty-state', '空态锚点ID应为 empty-state');
+});
+
+console.log('\n📦 6. 种子数据验证\n');
+
+test('种子数据零库存测试用例验证', () => {
+  const testCases = seedData.testCases.zeroStockValidation;
+  assertTrue(testCases.length > 0, '种子数据应包含零库存测试用例');
+  
+  for (const testCase of testCases) {
+    const equipment = initialEquipments.find(e => e.id === testCase.equipmentId);
+    assertTrue(equipment !== undefined, `应找到装备 ${testCase.equipmentId}`);
+    
+    if (equipment) {
+      const result = validateStock(equipment, testCase.sizeId);
+      assertFalse(result.success, `${testCase.sizeLabel} 验证应返回失败`);
+      assertEqual(result.message, testCase.expectedResult.message, '错误消息应匹配');
+    }
+  }
+});
+
+test('种子数据有库存测试用例验证', () => {
+  const testCases = seedData.testCases.inStockValidation;
+  assertTrue(testCases.length > 0, '种子数据应包含有库存测试用例');
+  
+  for (const testCase of testCases) {
+    const equipment = initialEquipments.find(e => e.id === testCase.equipmentId);
+    assertTrue(equipment !== undefined, `应找到装备 ${testCase.equipmentId}`);
+    
+    if (equipment) {
+      const result = validateStock(equipment, testCase.sizeId);
+      assertTrue(result.success, `${testCase.sizeLabel} 验证应返回成功`);
+      assertEqual(result.message, testCase.expectedResult.message, '成功消息应匹配');
+      assertTrue(result.data === true, 'data 应为 true');
+    }
+  }
+});
+
 console.log('\n========================================');
 console.log('  验证结果汇总');
 console.log('========================================');
+console.log(`📋 业务编号: ${seedData.businessNumber}`);
 console.log(`通过: ${passed}`);
 console.log(`失败: ${failed}`);
 console.log(`总计: ${passed + failed}`);
@@ -295,5 +354,15 @@ if (failed > 0) {
   console.log('      - 单板应为稳定板型(stable)');
   console.log('      - 所有推荐尺码库存均 > 0');
   console.log('      - 显示成功提示消息');
+  console.log('   7. 定位跳转验证:');
+  console.log('      - 滚动页面超过300px，右侧出现悬浮导航栏');
+  console.log('      - 点击「列表」图标，跳转到推荐列表区域');
+  console.log('      - 点击「详情」图标，跳转到第一条推荐详情');
+  console.log('      - 无推荐时点击「空态」图标，跳转到空态区域');
+  console.log('      - 点击装备卡片上的锚点图标，URL显示详情锚点');
+  console.log('   8. 库存验证:');
+  console.log('      - 库存为0的尺码显示「库存不足」且按钮禁用');
+  console.log('      - 加入清单时先验证库存，失败给出错误响应');
+  console.log('      - 加入清单成功后库存减1，按钮显示「已加入」');
   process.exit(0);
 }

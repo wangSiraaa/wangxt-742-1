@@ -1,0 +1,118 @@
+{
+  "businessNumber": "SEED-742-20260606-001",
+  "description": "雪场装备尺码推荐系统 - 测试样例数据",
+  "generatedAt": "2026-06-06T00:00:00Z",
+  "testCases": {
+    "zeroStockValidation": [
+      {
+        "caseId": "ZERO-STOCK-001",
+        "equipmentId": "sb-001",
+        "sizeId": "sb-001-s3",
+        "sizeLabel": "155cm",
+        "stock": 0,
+        "expectedResult": {
+          "success": false,
+          "message": "155cm库存不足"
+        }
+      },
+      {
+        "caseId": "ZERO-STOCK-002",
+        "equipmentId": "sb-002",
+        "sizeId": "sb-002-s2",
+        "sizeLabel": "155cm",
+        "stock": 0,
+        "expectedResult": {
+          "success": false,
+          "message": "155cm库存不足"
+        }
+      },
+      {
+        "caseId": "ZERO-STOCK-003",
+        "equipmentId": "boot-001",
+        "sizeId": "boot-001-s2",
+        "sizeLabel": "39码",
+        "stock": 0,
+        "expectedResult": {
+          "success": false,
+          "message": "39码库存不足"
+        }
+      }
+    ],
+    "inStockValidation": [
+      {
+        "caseId": "INSTOCK-001",
+        "equipmentId": "sb-001",
+        "sizeId": "sb-001-s2",
+        "sizeLabel": "150cm",
+        "stock": 5,
+        "expectedResult": {
+          "success": true,
+          "message": "150cm库存充足",
+          "data": true
+        }
+      },
+      {
+        "caseId": "INSTOCK-002",
+        "equipmentId": "boot-001",
+        "sizeId": "boot-001-s3",
+        "sizeLabel": "40码",
+        "stock": 5,
+        "expectedResult": {
+          "success": true,
+          "message": "40码库存充足",
+          "data": true
+        }
+      }
+    ],
+    "recommendScenarios": [
+      {
+        "caseId": "RECOMMEND-001",
+        "scenario": "初学者典型推荐",
+        "request": {
+          "skillLevel": "beginner",
+          "height": 165,
+          "weight": 55,
+          "footSize": 39,
+          "equipmentTypes": ["snowboard", "boots", "helmet"]
+        },
+        "expectedResult": {
+          "success": true,
+          "resultCount": 3,
+          "boardType": "stable"
+        }
+      },
+      {
+        "caseId": "RECOMMEND-002",
+        "scenario": "高级玩家推荐",
+        "request": {
+          "skillLevel": "advanced",
+          "height": 175,
+          "weight": 70,
+          "footSize": 42,
+          "equipmentTypes": ["snowboard"]
+        },
+        "expectedResult": {
+          "success": true,
+          "resultCount": 1
+        }
+      }
+    ],
+    "anchorNavigation": [
+      {
+        "anchorId": "recommend-list",
+        "description": "推荐结果列表区域",
+        "targetElement": "推荐结果列表容器"
+      },
+      {
+        "anchorId": "recommend-detail",
+        "description": "推荐结果详情卡片",
+        "targetElement": "单条推荐结果卡片"
+      },
+      {
+        "anchorId": "empty-state",
+        "description": "推荐结果空态区域",
+        "targetElement": "未推荐时的空态展示"
+      }
+    ]
+  }
+}
